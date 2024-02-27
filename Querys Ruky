@@ -1,0 +1,124 @@
+# Venta por SKU y Local
+
+**Original Query**
+
+select "store"."storeName", "product_variant"."scanCode", "product"."productName", "product_variant"."price", sum(cast("line_item"."quantity" as int)) qnt, sum(cast("line_item"."quantity" as int))*cast("product_variant"."price" as int) Total  from "order"
+left join "store" on "order"."storeId"="store"."id"
+left join "line_item" on "order"."id"="line_item"."orderId"
+left join "product_variant" on "line_item"."variantId"="product_variant"."id"
+left join "product" on "product_variant"."productId"="product"."id"
+where "order"."orderStatus"='PLACED'
+AND "creationDt" at time zone 'utc' at time zone 'clst' >= '2024-01-22 00:00:00' AND "creationDt" at time zone 'utc' at time zone 'clst' <= '2024-01-25 00:00:00'
+group by "store"."storeName", "product_variant"."scanCode", "product"."productName", "product_variant"."price"
+order by "store"."storeName"
+;
+
+## Venta por Local
+
+SELECT "storeName" TIENDA, sum(cast("totalPricePayable" as int))+sum(cast("totalDiscountAbsValue" as int)) SUBTOTAL, sum(cast("totalDiscountAbsValue" as int)) DESCUENTO, sum(cast("totalPricePayable" as int)) TOTAL
+from public.order left join "store" on "order"."storeId"="store"."id"
+WHERE "order"."paymentStatus"='PAID'
+AND "creationDt" at time zone 'utc' at time zone 'clst' >= '2023-01-01 00:00:00' AND "creationDt" at time zone 'utc' at time zone 'clst' <= '2023-01-31 23:59:59'
+group by "storeName"
+UNION
+SELECT 'TOTAL' AS TIENDA, sum(cast("totalPricePayable" as int))+sum(cast("totalDiscountAbsValue" as int)) SUBTOTAL, sum(cast("totalDiscountAbsValue" as int)) DESCUENTO, sum(cast("totalPricePayable" as int)) TOTAL
+from public.order left join "store" on "order"."storeId"="store"."id"
+WHERE "order"."paymentStatus"='PAID'
+AND "creationDt" at time zone 'utc' at time zone 'clst' >= '2023-01-01 00:00:00' AND "creationDt" at time zone 'utc' at time zone 'clst' <= '2023-01-31 23:59:59'
+ORDER BY subtotal asc
+;
+
+**Ordenes por fecha**
+SELECT "store"."storeName","order"."prettyOrderNumber","order"."creationDt","user"."firstName","user"."lastName","user"."phoneNumber",
+"user"."emailAddress","order"."totalPrice","order"."totalDiscountAbsValue","order"."totalPricePayable"
+FROM public.order, public.user, public.store
+WHERE "order"."customerId"="user"."id"
+AND "order"."storeId"="store"."id"
+AND "creationDt" at time zone 'utc' at time zone 'clst' >= '2023-06-01 00:00:00' AND "creationDt" at time zone 'utc' at time zone 'clst' <= '2023-07-01 00:00:00'
+AND "order"."orderStatus"='PLACED'
+;
+
+# Borrar Carro vacío
+
+DELETE FROM public."order"
+WHERE "order"."paymentStatus" = 'NOT_PAID'
+AND "order"."totalPrice" = '0.0'
+AND "order"."validationDt" >= '20240101 00:00:00'
+
+# Borrar orden particular
+
+DELETE FROM public."order"
+WHERE "order"."id" = '—'
+
+# *Carro cargado con productos*
+**Sin Operadores**
+SELECT "user"."phoneNumber","order"."prettyOrderNumber","user"."firstName","user"."lastName", "user"."emailAddress","order"."totalPrice", "order"."validationDt",  "store"."storeName" ,"order"."id"
+FROM public."order", public."user", public."store"
+WHERE "user"."id"="order"."customerId"
+AND "order"."storeId" = "store"."id"
+AND "order"."paymentStatus" = 'NOT_PAID'
+AND "order"."totalPrice" != '0.0'
+AND "store"."storeName" NOT IN ('Speedworks, Cerro Colorado','Speedworks, Kennedy','Nirvana, La Reina','F45 Training, Vitacura')
+AND "order"."validationDt" >= '20240111 00:00:00'
+ORDER BY "order"."totalPrice" desc
+
+# *Carro vacío*
+**Sin Operadores**
+SELECT "user"."phoneNumber","order"."prettyOrderNumber","user"."firstName","user"."lastName", "user"."emailAddress","order"."totalPrice", "order"."validationDt",  "store"."storeName" ,"order"."id"
+FROM public."order", public."user", public."store"
+WHERE "user"."id"="order"."customerId"
+AND "order"."storeId" = "store"."id"
+AND "order"."paymentStatus" = 'NOT_PAID'
+AND "order"."totalPrice" = '0.0'
+AND "order"."validationDt" >= '20240111 00:00:00'
+AND "store"."storeName" NOT IN ('Bxo Boxing, Las Condes','Speedworks, Cerro Colorado','Speedworks, Kennedy','Nirvana, La Reina','F45 Training, Vitacura')
+ORDER BY "store"."storeName", "order"."validationDt"  desc
+
+# Búsqueda de ordenes por usuario
+SELECT "order"."prettyOrderNumber","user"."firstName","user"."lastName", "user"."emailAddress","user"."phoneNumber","order"."totalPrice", "order"."validationDt",  "store"."storeName" ,"order"."id"
+FROM public."order", public."user", public."store"
+WHERE "user"."id"="order"."customerId"
+AND "order"."storeId" = "store"."id"
+AND "user"."emailAddress"= '***cotegomez.c@gmail.com***'
+ORDER BY "order"."validationDt" desc
+
+# Elementos listados dentro de una orden
+SELECT
+"line_item"."orderId",
+"line_item"."price",
+"line_item"."quantity",
+"line_item"."scanCode",
+MAX("product"."productName") AS "productName"
+FROM
+public."line_item"
+JOIN
+public."product" ON "line_item"."scanCode" = "product"."productId"
+WHERE
+"line_item"."orderId" = 'c1975737-2bc1-433b-ab6f-d147f28c332e'
+GROUP BY
+"line_item"."orderId",
+"line_item"."price",
+"line_item"."quantity",
+"line_item"."scanCode";
+
+# Propuesta Fidelización dcto %
+SELECT
+"user"."firstName",
+"user"."lastName",
+COUNT("order"."id") AS ordenes,
+ROUND(AVG("order"."totalPrice"::numeric),2) AS promedio_precio
+FROM
+public."user",
+public."order",
+public."store"
+WHERE
+"order"."customerId" = "user"."id"
+AND "order"."storeId" = "store"."id"
+AND "store"."storeName" = 'Switch 345, Las Condes'
+AND "creationDt" at time zone 'clst' >= '2024-02-01 00:00:00'
+AND "creationDt" at time zone 'clst' <= '2024-02-22 12:00:00'
+GROUP BY
+"user"."firstName",
+"user"."lastName"
+ORDER BY
+ordenes DESC;
